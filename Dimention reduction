@@ -1,0 +1,85 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.decomposition import PCA
+from sklearn.compose import ColumnTransformer
+from sklearn.metrics import mean_squared_error, r2_score
+
+# Create a high-quality synthetic salary benchmarking dataset
+np.random.seed(42)
+experience_range = range(0, 31)
+education_levels = ['High School', 'Associate', 'Bachelor', 'Master', 'Doctorate']
+industries = ['IT', 'Healthcare', 'Finance', 'Education', 'Manufacturing']
+locations = ['Urban', 'Suburban', 'Rural']
+salary_ranges = {
+    'High School': (20000, 40000),
+    'Associate': (30000, 50000),
+    'Bachelor': (40000, 80000),
+    'Master': (60000, 120000),
+    'Doctorate': (80000, 150000)
+}
+
+data = []
+for _ in range(1000):
+    exp = np.random.choice(experience_range)
+    edu = np.random.choice(education_levels)
+    ind = np.random.choice(industries)
+    loc = np.random.choice(locations)
+    base_salary = np.random.uniform(*salary_ranges[edu])
+    experience_factor = base_salary * (0.05 * exp)
+    location_factor = base_salary * (0.1 if loc == 'Urban' else 0.05 if loc == 'Suburban' else 0)
+    industry_factor = base_salary * (0.2 if ind in ['IT', 'Finance'] else 0.1)
+    offered_salary = base_salary + experience_factor + location_factor + industry_factor + np.random.uniform(-5000, 5000)
+    data.append([exp, edu, ind, loc, round(offered_salary, 2)])
+
+columns = ['experience', 'education_level', 'industry', 'location', 'offered_salary']
+df = pd.DataFrame(data, columns=columns)
+
+# Define features and target variable
+X = df[['experience', 'education_level', 'industry', 'location']]
+y = df['offered_salary']
+
+# Preprocessing: One-hot encode categorical variables and scale numerical ones
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), ['experience']),
+        ('cat', OneHotEncoder(), ['education_level', 'industry', 'location'])
+    ]
+)
+
+X_preprocessed = preprocessor.fit_transform(X)
+
+# Apply PCA for dimensionality reduction
+pca = PCA(n_components=6)  # Retain all components explicitly to analyze explained variance
+X_pca = pca.fit_transform(X_preprocessed)
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(X_pca, y, test_size=0.3, random_state=42)
+
+# Train the regression model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+
+# Evaluate the model
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print("Mean Squared Error:", mse)
+print("R-squared Score:", r2)
+
+# Explained variance by PCA components
+explained_variance = pca.explained_variance_ratio_
+explained_variance_cumsum = explained_variance.cumsum()
+
+print("Explained Variance Ratio by PCA Components:", explained_variance)
+print("Cumulative Explained Variance:", explained_variance_cumsum)
+
+# Interpretation of results
+if r2 < 0:
+    print("The model is underperforming. Consider revisiting feature engineering or exploring non-linear models.")
+else:
+    print("The model has some predictive power. Investigate further improvements.")
